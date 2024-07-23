@@ -1,73 +1,75 @@
 import database
 
-def get_user_input(prompt, type_=str, min_=None, max_=None, range_=None):
+def get_user_input(prompt, dtype, min_value=None, max_value=None):
     while True:
-        user_input = input(prompt)
         try:
-            user_input = type_(user_input)
+            value = dtype(input(prompt))
+            if (min_value is not None and value < min_value) or (max_value is not None and value > max_value):
+                raise ValueError
+            return value
         except ValueError:
-            print(f"Please enter a valid {type_.__name__}.")
-            continue
-        if min_ is not None and user_input < min_:
-            print(f"Please enter a value greater than {min_}.")
-        elif max_ is not None and user_input > max_:
-            print(f"Please enter a value less than {max_}.")
-        elif range_ is not None and user_input not in range_:
-            print(f"Please enter a value in {range_}.")
-        else:
-            return user_input
-
-def print_anime_list(anime_list):
-    if not anime_list:
-        print("No anime found.")
-        return
-    print(f"{'ID':<5} {'Title':<30} {'Genres':<30} {'Episodes':<10} {'Status':<10}")
-    print("="*85)
-    for anime in anime_list:
-        print(f"{anime[0]:<5} {anime[1]:<30} {anime[2]:<30} {anime[3]:<10} {anime[4]:<10}")
+            print(f"Please enter a valid {dtype.__name__} between {min_value} and {max_value}.")
 
 def register():
-    username = input("Enter a username: ")
-    password = input("Enter a password: ")
-    if database.register_user(username, password):
-        print("User registered successfully!")
-    else:
-        print("Username already exists. Please try a different one.")
+    username = input("Enter your username: ")
+    password = input("Enter your password: ")
+    conn = database.create_connection()
+    try:
+        with conn:
+            conn.execute('''
+                INSERT INTO users (username, password)
+                VALUES (?, ?)
+            ''', (username, password))
+        print("Registration successful!")
+    except sqlite3.IntegrityError:
+        print("Username already exists.")
 
 def login():
     username = input("Enter your username: ")
     password = input("Enter your password: ")
-    if database.login_user(username, password):
-        print("Login successful!")
-        return True
-    else:
-        print("Invalid username or password. Please try again.")
-        return False
+    conn = database.create_connection()
+    with conn:
+        cursor = conn.execute('''
+            SELECT id FROM users
+            WHERE username = ? AND password = ?
+        ''', (username, password))
+        user = cursor.fetchone()
+        if user:
+            print("Login successful!")
+            return True
+        else:
+            print("Invalid username or password.")
+            return False
 
 def get_user_id(username):
     conn = database.create_connection()
     with conn:
-        cursor = conn.execute('SELECT id FROM users WHERE username = ?', (username,))
+        cursor = conn.execute('''
+            SELECT id FROM users
+            WHERE username = ?
+        ''', (username,))
         user = cursor.fetchone()
         return user[0] if user else None
 
+def print_anime_list(anime_list):
+    print(f"{'ID':<5} {'Title':<30} {'Episodes':<10} {'Status':<10}")
+    print("="*55)
+    for anime in anime_list:
+        print(f"{anime[0]:<5} {anime[1]:<30} {anime[2]:<10} {anime[3]:<10}")
+
 def add_anime():
     title = input("Enter anime title: ")
-    genres = input("Enter anime genres (comma separated): ").split(',')
-    genres = [genre.strip() for genre in genres]
     episodes = get_user_input("Enter number of episodes: ", int, 1)
-    status = input("Enter status (Watching/Completed/On Hold/Dropped): ")
-    database.add_anime(title, episodes, status, genres)
+    status = input("Enter status (e.g., 'Completed', 'Ongoing'): ")
+    database.add_anime(title, episodes, status)
     print("Anime added successfully!")
 
 def update_anime():
     anime_id = get_user_input("Enter anime ID to update: ", int, 1)
     title = input("Enter new title: ")
-    genres = input("Enter new genres (comma separated): ").split(',')
-    genres = [genre.strip() for genre in genres]
     episodes = get_user_input("Enter new number of episodes: ", int, 1)
-    status = input("Enter new status (Watching/Completed/On Hold/Dropped): ")
-    database.update_anime(anime_id, title, episodes, status, genres)
+    status = input("Enter new status (e.g., 'Completed', 'Ongoing'): ")
+    database.update_anime(anime_id, title, episodes, status)
     print("Anime updated successfully!")
 
 def delete_anime():
@@ -81,48 +83,80 @@ def search_anime_by_title():
     print_anime_list(anime_list)
 
 def filter_anime_by_genre():
-    genre = input("Enter genre to filter by: ")
-    anime_list = database.filter_anime_by_genre(genre)
+    genre_id = get_user_input("Enter genre ID to filter by: ", int, 1)
+    anime_list = database.filter_anime_by_genre(genre_id)
     print_anime_list(anime_list)
 
 def filter_anime_by_status():
-    status = input("Enter status to filter by (Watching/Completed/On Hold/Dropped): ")
+    status = input("Enter status to filter by (e.g., 'Completed', 'Ongoing'): ")
     anime_list = database.filter_anime_by_status(status)
     print_anime_list(anime_list)
 
-def view_preferences(user_id):
-    preferences = database.get_all_preferences(user_id)
-    if not preferences:
-        print("No preferences set.")
-        return
-    print("Current Preferences:")
-    for key, value in preferences.items():
-        print(f"{key}: {value}")
-
-def update_preferences(user_id):
-    print("1. Set Default Genre")
-    print("2. Set Viewing Options")
-    choice = get_user_input("Enter your choice: ", int, 1, 2)
-    if choice == 1:
-        genre = input("Enter your default genre: ")
-        database.set_preference(user_id, 'default_genre', genre)
-        print("Default genre updated!")
-    elif choice == 2:
-        option = input("Enter viewing option (e.g., List/Grid): ")
-        database.set_preference(user_id, 'viewing_option', option)
-        print("Viewing option updated!")
-
 def search_anime_by_genres():
-    genres = input("Enter genres to search (comma separated): ").split(',')
-    genres = [genre.strip() for genre in genres]
-    anime_list = database.search_anime_by_genres(genres)
+    genre_ids = list(map(int, input("Enter genre IDs (comma-separated): ").split(',')))
+    anime_list = database.search_anime_by_genres(genre_ids)
     print_anime_list(anime_list)
 
 def filter_anime_by_statuses():
-    statuses = input("Enter statuses to filter by (comma separated): ").split(',')
-    statuses = [status.strip() for status in statuses]
+    statuses = input("Enter statuses (comma-separated): ").split(',')
     anime_list = database.filter_anime_by_statuses(statuses)
     print_anime_list(anime_list)
+
+def add_review(user_id):
+    anime_id = get_user_input("Enter anime ID to review: ", int, 1)
+    rating = get_user_input("Enter your rating (1-10): ", int, 1, 10)
+    review = input("Enter your review: ")
+    database.add_review(user_id, anime_id, rating, review)
+    print("Review added successfully!")
+
+def update_review():
+    review_id = get_user_input("Enter review ID to update: ", int, 1)
+    rating = get_user_input("Enter new rating (1-10): ", int, 1, 10)
+    review = input("Enter new review: ")
+    database.update_review(review_id, rating, review)
+    print("Review updated successfully!")
+
+def delete_review():
+    review_id = get_user_input("Enter review ID to delete: ", int, 1)
+    database.delete_review(review_id)
+    print("Review deleted successfully!")
+
+def view_reviews_for_anime():
+    anime_id = get_user_input("Enter anime ID to view reviews: ", int, 1)
+    reviews = database.get_reviews_for_anime(anime_id)
+    if not reviews:
+        print("No reviews found for this anime.")
+        return
+    print(f"{'Username':<20} {'Rating':<6} {'Review':<50}")
+    print("="*80)
+    for review in reviews:
+        print(f"{review[0]:<20} {review[1]:<6} {review[2]:<50}")
+
+def view_user_reviews(user_id):
+    reviews = database.get_user_reviews(user_id)
+    if not reviews:
+        print("No reviews found for your account.")
+        return
+    print(f"{'Anime Title':<30} {'Rating':<6} {'Review':<50}")
+    print("="*80)
+    for review in reviews:
+        print(f"{review[0]:<30} {review[1]:<6} {review[2]:<50}")
+
+def view_preferences(user_id):
+    preferences = database.get_preferences(user_id)
+    if not preferences:
+        print("No preferences found.")
+        return
+    print(f"{'Key':<20} {'Value':<50}")
+    print("="*70)
+    for key, value in preferences:
+        print(f"{key:<20} {value:<50}")
+
+def update_preferences(user_id):
+    key = input("Enter preference key to update: ")
+    value = input("Enter new value: ")
+    database.update_preference(user_id, key, value)
+    print("Preference updated successfully!")
 
 def main():
     print("Welcome to the Anime List Database")
@@ -154,12 +188,17 @@ def main():
         print("7. Filter Anime by Status")
         print("8. Search Anime by Multiple Genres")
         print("9. Filter Anime by Multiple Statuses")
-        print("10. Export to CSV")
-        print("11. Backup Database")
-        print("12. View Preferences")
-        print("13. Update Preferences")
-        print("14. Logout")
-        choice = get_user_input("Enter your choice: ", int, 1, 14)
+        print("10. Add Review")
+        print("11. Update Review")
+        print("12. Delete Review")
+        print("13. View Reviews for Anime")
+        print("14. View Your Reviews")
+        print("15. Export to CSV")
+        print("16. Backup Database")
+        print("17. View Preferences")
+        print("18. Update Preferences")
+        print("19. Logout")
+        choice = get_user_input("Enter your choice: ", int, 1, 19)
 
         if choice == 1:
             add_anime()
@@ -181,21 +220,32 @@ def main():
         elif choice == 9:
             filter_anime_by_statuses()
         elif choice == 10:
+            add_review(user_id)
+        elif choice == 11:
+            update_review()
+        elif choice == 12:
+            delete_review()
+        elif choice == 13:
+            view_reviews_for_anime()
+        elif choice == 14:
+            view_user_reviews(user_id)
+        elif choice == 15:
             filename = input("Enter filename for export (default: anime_list.csv): ")
             if not filename:
                 filename = 'anime_list.csv'
             database.export_to_csv(filename)
             print(f"Anime list exported to {filename}.")
-        elif choice == 11:
+        elif choice == 16:
             database.backup_database()
-        elif choice == 12:
+        elif choice == 17:
             if user_id:
                 view_preferences(user_id)
-        elif choice == 13:
+        elif choice == 18:
             if user_id:
                 update_preferences(user_id)
-        elif choice == 14:
+        elif choice == 19:
             print("Logged out successfully.")
             main()
+
 if __name__ == "__main__":
     main()

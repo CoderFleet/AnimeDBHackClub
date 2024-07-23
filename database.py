@@ -48,183 +48,183 @@ def create_table():
                 PRIMARY KEY (user_id, key)
             )
         ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                anime_id INTEGER,
+                rating INTEGER CHECK (rating BETWEEN 1 AND 10),
+                review TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                FOREIGN KEY (anime_id) REFERENCES anime (id)
+            )
+        ''')
 
-def register_user(username, password):
+def add_review(user_id, anime_id, rating, review):
     conn = create_connection()
     with conn:
-        try:
-            conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        conn.execute('''
+            INSERT INTO reviews (user_id, anime_id, rating, review)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, anime_id, rating, review))
 
-def login_user(username, password):
+def update_review(review_id, rating, review):
     conn = create_connection()
     with conn:
-        cursor = conn.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
-        user = cursor.fetchone()
-        return user is not None
+        conn.execute('''
+            UPDATE reviews
+            SET rating = ?, review = ?
+            WHERE id = ?
+        ''', (rating, review, review_id))
 
-def add_genre(name):
+def delete_review(review_id):
     conn = create_connection()
     with conn:
-        conn.execute('INSERT INTO genre (name) VALUES (?)', (name,))
+        conn.execute('DELETE FROM reviews WHERE id = ?', (review_id,))
 
-def get_genre_id(name):
-    conn = create_connection()
-    with conn:
-        cursor = conn.execute('SELECT id FROM genre WHERE name = ?', (name,))
-        genre = cursor.fetchone()
-        if genre:
-            return genre[0]
-        else:
-            return None
-
-def add_anime(title, episodes, status, genres):
-    conn = create_connection()
-    with conn:
-        cursor = conn.execute('INSERT INTO anime (title, episodes, status) VALUES (?, ?, ?)', (title, episodes, status))
-        anime_id = cursor.lastrowid
-        for genre in genres:
-            genre_id = get_genre_id(genre)
-            if genre_id is None:
-                add_genre(genre)
-                genre_id = get_genre_id(genre)
-            conn.execute('INSERT INTO anime_genre (anime_id, genre_id) VALUES (?, ?)', (anime_id, genre_id))
-
-def get_all_anime():
+def get_reviews_for_anime(anime_id):
     conn = create_connection()
     with conn:
         cursor = conn.execute('''
-            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
-            FROM anime
-            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
-            LEFT JOIN genre ON anime_genre.genre_id = genre.id
-            GROUP BY anime.id
-        ''')
+            SELECT users.username, reviews.rating, reviews.review
+            FROM reviews
+            JOIN users ON reviews.user_id = users.id
+            WHERE reviews.anime_id = ?
+        ''', (anime_id,))
         return cursor.fetchall()
 
-def update_anime(anime_id, title, episodes, status, genres):
+def get_user_reviews(user_id):
     conn = create_connection()
     with conn:
-        conn.execute('UPDATE anime SET title = ?, episodes = ?, status = ? WHERE id = ?', (title, episodes, status, anime_id))
-        conn.execute('DELETE FROM anime_genre WHERE anime_id = ?', (anime_id,))
-        for genre in genres:
-            genre_id = get_genre_id(genre)
-            if genre_id is None:
-                add_genre(genre)
-                genre_id = get_genre_id(genre)
-            conn.execute('INSERT INTO anime_genre (anime_id, genre_id) VALUES (?, ?)', (anime_id, genre_id))
+        cursor = conn.execute('''
+            SELECT anime.title, reviews.rating, reviews.review
+            FROM reviews
+            JOIN anime ON reviews.anime_id = anime.id
+            WHERE reviews.user_id = ?
+        ''', (user_id,))
+        return cursor.fetchall()
+
+def add_anime(title, episodes, status):
+    conn = create_connection()
+    with conn:
+        conn.execute('''
+            INSERT INTO anime (title, episodes, status)
+            VALUES (?, ?, ?)
+        ''', (title, episodes, status))
+
+def update_anime(anime_id, title, episodes, status):
+    conn = create_connection()
+    with conn:
+        conn.execute('''
+            UPDATE anime
+            SET title = ?, episodes = ?, status = ?
+            WHERE id = ?
+        ''', (title, episodes, status, anime_id))
 
 def delete_anime(anime_id):
     conn = create_connection()
     with conn:
         conn.execute('DELETE FROM anime WHERE id = ?', (anime_id,))
-        conn.execute('DELETE FROM anime_genre WHERE anime_id = ?', (anime_id,))
+
+def get_all_anime():
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('SELECT * FROM anime')
+        return cursor.fetchall()
+
+def get_anime_by_id(anime_id):
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('SELECT * FROM anime WHERE id = ?', (anime_id,))
+        return cursor.fetchone()
 
 def search_anime_by_title(title):
     conn = create_connection()
     with conn:
-        cursor = conn.execute('''
-            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
-            FROM anime
-            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
-            LEFT JOIN genre ON anime_genre.genre_id = genre.id
-            WHERE anime.title LIKE ?
-            GROUP BY anime.id
-        ''', ('%' + title + '%',))
+        cursor = conn.execute('SELECT * FROM anime WHERE title LIKE ?', ('%' + title + '%',))
         return cursor.fetchall()
 
-def filter_anime_by_genre(genre):
+def filter_anime_by_genre(genre_id):
     conn = create_connection()
     with conn:
         cursor = conn.execute('''
-            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
+            SELECT anime.*
             FROM anime
-            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
-            LEFT JOIN genre ON anime_genre.genre_id = genre.id
-            WHERE genre.name = ?
-            GROUP BY anime.id
-        ''', (genre,))
+            JOIN anime_genre ON anime.id = anime_genre.anime_id
+            WHERE anime_genre.genre_id = ?
+        ''', (genre_id,))
         return cursor.fetchall()
 
 def filter_anime_by_status(status):
     conn = create_connection()
     with conn:
-        cursor = conn.execute('''
-            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
-            FROM anime
-            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
-            LEFT JOIN genre ON anime_genre.genre_id = genre.id
-            WHERE anime.status = ?
-            GROUP BY anime.id
-        ''', (status,))
+        cursor = conn.execute('SELECT * FROM anime WHERE status = ?', (status,))
         return cursor.fetchall()
 
-def export_to_csv(filename='anime_list.csv'):
-    anime_list = get_all_anime()
-    with open(filename, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['ID', 'Title', 'Genres', 'Episodes', 'Status'])
-        writer.writerows(anime_list)
-
-def backup_database():
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_filename = f'anime_list_backup_{timestamp}.db'
-    shutil.copy('anime_list.db', backup_filename)
-    print(f"Database backed up as {backup_filename}")
-
-def set_preference(user_id, key, value):
+def search_anime_by_genres(genre_ids):
     conn = create_connection()
     with conn:
-        conn.execute('''
-            INSERT INTO preferences (user_id, key, value)
-            VALUES (?, ?, ?)
-            ON CONFLICT(user_id, key) DO UPDATE SET value = ?
-        ''', (user_id, key, value, value))
-
-def search_anime_by_genres(genres):
-    conn = create_connection()
-    with conn:
-        placeholders = ','.join(['?'] * len(genres))
-        query = f'''
-            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
+        query = '''
+            SELECT DISTINCT anime.*
             FROM anime
-            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
-            LEFT JOIN genre ON anime_genre.genre_id = genre.id
-            WHERE genre.name IN ({placeholders})
-            GROUP BY anime.id
-        '''
-        cursor = conn.execute(query, genres)
+            JOIN anime_genre ON anime.id = anime_genre.anime_id
+            WHERE anime_genre.genre_id IN ({})
+        '''.format(','.join('?' * len(genre_ids)))
+        cursor = conn.execute(query, genre_ids)
         return cursor.fetchall()
 
 def filter_anime_by_statuses(statuses):
     conn = create_connection()
     with conn:
-        placeholders = ','.join(['?'] * len(statuses))
-        query = f'''
-            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
-            FROM anime
-            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
-            LEFT JOIN genre ON anime_genre.genre_id = genre.id
-            WHERE anime.status IN ({placeholders})
-            GROUP BY anime.id
-        '''
+        query = 'SELECT * FROM anime WHERE status IN ({})'.format(','.join('?' * len(statuses)))
         cursor = conn.execute(query, statuses)
         return cursor.fetchall()
 
-
-def get_preference(user_id, key):
+def export_to_csv(filename):
     conn = create_connection()
     with conn:
-        cursor = conn.execute('SELECT value FROM preferences WHERE user_id = ? AND key = ?', (user_id, key))
-        preference = cursor.fetchone()
-        return preference[0] if preference else None
+        cursor = conn.execute('SELECT * FROM anime')
+        with open(filename, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([desc[0] for desc in cursor.description])
+            writer.writerows(cursor)
 
-def get_all_preferences(user_id):
+def backup_database():
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_file = f'anime_list_backup_{timestamp}.db'
+    shutil.copy('anime_list.db', backup_file)
+    print(f"Database backed up to {backup_file}.")
+
+def add_preference(user_id, key, value):
     conn = create_connection()
     with conn:
-        cursor = conn.execute('SELECT key, value FROM preferences WHERE user_id = ?', (user_id,))
-        return dict(cursor.fetchall())
+        conn.execute('''
+            INSERT INTO preferences (user_id, key, value)
+            VALUES (?, ?, ?)
+        ''', (user_id, key, value))
+
+def update_preference(user_id, key, value):
+    conn = create_connection()
+    with conn:
+        conn.execute('''
+            UPDATE preferences
+            SET value = ?
+            WHERE user_id = ? AND key = ?
+        ''', (value, user_id, key))
+
+def delete_preference(user_id, key):
+    conn = create_connection()
+    with conn:
+        conn.execute('DELETE FROM preferences WHERE user_id = ? AND key = ?', (user_id, key))
+
+def get_preferences(user_id):
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('''
+            SELECT key, value
+            FROM preferences
+            WHERE user_id = ?
+        ''', (user_id,))
+        return cursor.fetchall()
 
 create_table()
