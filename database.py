@@ -7,6 +7,13 @@ def create_table():
     conn = create_connection()
     with conn:
         conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password TEXT NOT NULL
+            )
+        ''')
+        conn.execute('''
             CREATE TABLE IF NOT EXISTS anime (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
@@ -29,6 +36,22 @@ def create_table():
                 PRIMARY KEY (anime_id, genre_id)
             )
         ''')
+
+def register_user(username, password):
+    conn = create_connection()
+    with conn:
+        try:
+            conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+def login_user(username, password):
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
+        user = cursor.fetchone()
+        return user is not None
 
 def add_genre(name):
     conn = create_connection()
