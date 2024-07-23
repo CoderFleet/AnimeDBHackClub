@@ -39,6 +39,15 @@ def create_table():
                 PRIMARY KEY (anime_id, genre_id)
             )
         ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS preferences (
+                user_id INTEGER,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                PRIMARY KEY (user_id, key)
+            )
+        ''')
 
 def register_user(username, password):
     conn = create_connection()
@@ -164,5 +173,27 @@ def backup_database():
     backup_filename = f'anime_list_backup_{timestamp}.db'
     shutil.copy('anime_list.db', backup_filename)
     print(f"Database backed up as {backup_filename}")
+
+def set_preference(user_id, key, value):
+    conn = create_connection()
+    with conn:
+        conn.execute('''
+            INSERT INTO preferences (user_id, key, value)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, key) DO UPDATE SET value = ?
+        ''', (user_id, key, value, value))
+
+def get_preference(user_id, key):
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('SELECT value FROM preferences WHERE user_id = ? AND key = ?', (user_id, key))
+        preference = cursor.fetchone()
+        return preference[0] if preference else None
+
+def get_all_preferences(user_id):
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('SELECT key, value FROM preferences WHERE user_id = ?', (user_id,))
+        return dict(cursor.fetchall())
 
 create_table()

@@ -44,6 +44,13 @@ def login():
         print("Invalid username or password. Please try again.")
         return False
 
+def get_user_id(username):
+    conn = database.create_connection()
+    with conn:
+        cursor = conn.execute('SELECT id FROM users WHERE username = ?', (username,))
+        user = cursor.fetchone()
+        return user[0] if user else None
+
 def add_anime():
     title = input("Enter anime title: ")
     genres = input("Enter anime genres (comma separated): ").split(',')
@@ -83,9 +90,32 @@ def filter_anime_by_status():
     anime_list = database.filter_anime_by_status(status)
     print_anime_list(anime_list)
 
+def view_preferences(user_id):
+    preferences = database.get_all_preferences(user_id)
+    if not preferences:
+        print("No preferences set.")
+        return
+    print("Current Preferences:")
+    for key, value in preferences.items():
+        print(f"{key}: {value}")
+
+def update_preferences(user_id):
+    print("1. Set Default Genre")
+    print("2. Set Viewing Options")
+    choice = get_user_input("Enter your choice: ", int, 1, 2)
+    if choice == 1:
+        genre = input("Enter your default genre: ")
+        database.set_preference(user_id, 'default_genre', genre)
+        print("Default genre updated!")
+    elif choice == 2:
+        option = input("Enter viewing option (e.g., List/Grid): ")
+        database.set_preference(user_id, 'viewing_option', option)
+        print("Viewing option updated!")
+
 def main():
     print("Welcome to the Anime List Database")
     logged_in = False
+    user_id = None
     while not logged_in:
         print("\n1. Register")
         print("2. Login")
@@ -94,7 +124,10 @@ def main():
         if choice == 1:
             register()
         elif choice == 2:
+            username = input("Enter your username: ")
             logged_in = login()
+            if logged_in:
+                user_id = get_user_id(username)
         elif choice == 3:
             return
 
@@ -109,8 +142,10 @@ def main():
         print("7. Filter Anime by Status")
         print("8. Export to CSV")
         print("9. Backup Database")
-        print("10. Logout")
-        choice = get_user_input("Enter your choice: ", int, 1, 10)
+        print("10. View Preferences")
+        print("11. Update Preferences")
+        print("12. Logout")
+        choice = get_user_input("Enter your choice: ", int, 1, 12)
 
         if choice == 1:
             add_anime()
@@ -136,6 +171,12 @@ def main():
         elif choice == 9:
             database.backup_database()
         elif choice == 10:
+            if user_id:
+                view_preferences(user_id)
+        elif choice == 11:
+            if user_id:
+                update_preferences(user_id)
+        elif choice == 12:
             print("Logged out successfully.")
             main()
 
