@@ -1,4 +1,7 @@
 import sqlite3
+import csv
+import shutil
+from datetime import datetime
 
 def create_connection():
     return sqlite3.connect('anime_list.db')
@@ -148,5 +151,18 @@ def filter_anime_by_status(status):
             GROUP BY anime.id
         ''', (status,))
         return cursor.fetchall()
+
+def export_to_csv(filename='anime_list.csv'):
+    anime_list = get_all_anime()
+    with open(filename, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['ID', 'Title', 'Genres', 'Episodes', 'Status'])
+        writer.writerows(anime_list)
+
+def backup_database():
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_filename = f'anime_list_backup_{timestamp}.db'
+    shutil.copy('anime_list.db', backup_filename)
+    print(f"Database backed up as {backup_filename}")
 
 create_table()
