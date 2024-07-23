@@ -158,6 +158,29 @@ def update_preferences(user_id):
     database.update_preference(user_id, key, value)
     print("Preference updated successfully!")
 
+def add_genre():
+    name = input("Enter genre name: ")
+    database.add_genre(name)
+    print("Genre added successfully!")
+
+def update_genre():
+    genre_id = get_user_input("Enter genre ID to update: ", int, 1)
+    new_name = input("Enter new genre name: ")
+    database.update_genre(genre_id, new_name)
+    print("Genre updated successfully!")
+
+def delete_genre():
+    genre_id = get_user_input("Enter genre ID to delete: ", int, 1)
+    database.delete_genre(genre_id)
+    print("Genre deleted successfully!")
+
+def view_all_genres():
+    genres = database.get_all_genres()
+    print(f"{'ID':<5} {'Name':<30}")
+    print("="*35)
+    for genre in genres:
+        print(f"{genre[0]:<5} {genre[1]:<30}")
+
 def main():
     print("Welcome to the Anime List Database")
     logged_in = False
@@ -197,8 +220,9 @@ def main():
         print("16. Backup Database")
         print("17. View Preferences")
         print("18. Update Preferences")
-        print("19. Logout")
-        choice = get_user_input("Enter your choice: ", int, 1, 19)
+        print("19. Manage Genres") # New option
+        print("20. Logout")
+        choice = get_user_input("Enter your choice: ", int, 1, 20)
 
         if choice == 1:
             add_anime()
@@ -243,7 +267,21 @@ def main():
         elif choice == 18:
             if user_id:
                 update_preferences(user_id)
-        elif choice == 19:
+        elif choice == 19: # Manage genres
+            print("\n1. Add Genre")
+            print("2. Update Genre")
+            print("3. Delete Genre")
+            print("4. View All Genres")
+            genre_choice = get_user_input("Enter your choice: ", int, 1, 4)
+            if genre_choice == 1:
+                add_genre()
+            elif genre_choice == 2:
+                update_genre()
+            elif genre_choice == 3:
+                delete_genre()
+            elif genre_choice == 4:
+                view_all_genres()
+        elif choice == 20:
             print("Logged out successfully.")
             main()
 

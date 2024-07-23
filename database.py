@@ -226,5 +226,33 @@ def get_preferences(user_id):
             WHERE user_id = ?
         ''', (user_id,))
         return cursor.fetchall()
+    
+def add_genre(name):
+    conn = create_connection()
+    with conn:
+        conn.execute('''
+            INSERT INTO genre (name)
+            VALUES (?)
+        ''', (name,))
+
+def update_genre(genre_id, new_name):
+    conn = create_connection()
+    with conn:
+        conn.execute('''
+            UPDATE genre
+            SET name = ?
+            WHERE id = ?
+        ''', (new_name, genre_id))
+
+def delete_genre(genre_id):
+    conn = create_connection()
+    with conn:
+        conn.execute('DELETE FROM genre WHERE id = ?', (genre_id,))
+
+def get_all_genres():
+    conn = create_connection()
+    with conn:
+        cursor = conn.execute('SELECT * FROM genre')
+        return cursor.fetchall()
 
 create_table()
