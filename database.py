@@ -183,6 +183,37 @@ def set_preference(user_id, key, value):
             ON CONFLICT(user_id, key) DO UPDATE SET value = ?
         ''', (user_id, key, value, value))
 
+def search_anime_by_genres(genres):
+    conn = create_connection()
+    with conn:
+        placeholders = ','.join(['?'] * len(genres))
+        query = f'''
+            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
+            FROM anime
+            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
+            LEFT JOIN genre ON anime_genre.genre_id = genre.id
+            WHERE genre.name IN ({placeholders})
+            GROUP BY anime.id
+        '''
+        cursor = conn.execute(query, genres)
+        return cursor.fetchall()
+
+def filter_anime_by_statuses(statuses):
+    conn = create_connection()
+    with conn:
+        placeholders = ','.join(['?'] * len(statuses))
+        query = f'''
+            SELECT anime.id, anime.title, GROUP_CONCAT(genre.name), anime.episodes, anime.status
+            FROM anime
+            LEFT JOIN anime_genre ON anime.id = anime_genre.anime_id
+            LEFT JOIN genre ON anime_genre.genre_id = genre.id
+            WHERE anime.status IN ({placeholders})
+            GROUP BY anime.id
+        '''
+        cursor = conn.execute(query, statuses)
+        return cursor.fetchall()
+
+
 def get_preference(user_id, key):
     conn = create_connection()
     with conn:

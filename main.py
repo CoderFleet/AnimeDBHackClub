@@ -112,6 +112,18 @@ def update_preferences(user_id):
         database.set_preference(user_id, 'viewing_option', option)
         print("Viewing option updated!")
 
+def search_anime_by_genres():
+    genres = input("Enter genres to search (comma separated): ").split(',')
+    genres = [genre.strip() for genre in genres]
+    anime_list = database.search_anime_by_genres(genres)
+    print_anime_list(anime_list)
+
+def filter_anime_by_statuses():
+    statuses = input("Enter statuses to filter by (comma separated): ").split(',')
+    statuses = [status.strip() for status in statuses]
+    anime_list = database.filter_anime_by_statuses(statuses)
+    print_anime_list(anime_list)
+
 def main():
     print("Welcome to the Anime List Database")
     logged_in = False
@@ -140,12 +152,14 @@ def main():
         print("5. Search Anime by Title")
         print("6. Filter Anime by Genre")
         print("7. Filter Anime by Status")
-        print("8. Export to CSV")
-        print("9. Backup Database")
-        print("10. View Preferences")
-        print("11. Update Preferences")
-        print("12. Logout")
-        choice = get_user_input("Enter your choice: ", int, 1, 12)
+        print("8. Search Anime by Multiple Genres")
+        print("9. Filter Anime by Multiple Statuses")
+        print("10. Export to CSV")
+        print("11. Backup Database")
+        print("12. View Preferences")
+        print("13. Update Preferences")
+        print("14. Logout")
+        choice = get_user_input("Enter your choice: ", int, 1, 14)
 
         if choice == 1:
             add_anime()
@@ -163,22 +177,25 @@ def main():
         elif choice == 7:
             filter_anime_by_status()
         elif choice == 8:
+            search_anime_by_genres()
+        elif choice == 9:
+            filter_anime_by_statuses()
+        elif choice == 10:
             filename = input("Enter filename for export (default: anime_list.csv): ")
             if not filename:
                 filename = 'anime_list.csv'
             database.export_to_csv(filename)
             print(f"Anime list exported to {filename}.")
-        elif choice == 9:
+        elif choice == 11:
             database.backup_database()
-        elif choice == 10:
+        elif choice == 12:
             if user_id:
                 view_preferences(user_id)
-        elif choice == 11:
+        elif choice == 13:
             if user_id:
                 update_preferences(user_id)
-        elif choice == 12:
+        elif choice == 14:
             print("Logged out successfully.")
             main()
-
 if __name__ == "__main__":
     main()
