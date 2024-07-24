@@ -125,6 +125,12 @@ class AnimeListApp(QMainWindow):
         self.statistics_table = QTableWidget(0, 3, self)
         self.statistics_table.setHorizontalHeaderLabels(['Total Animes', 'Average Rating', 'Highest Rating'])
 
+        self.view_details_button = QPushButton('View Details', self)
+        self.view_details_button.clicked.connect(self.view_details)
+
+        self.rate_anime_button = QPushButton('Rate Anime', self)
+        self.rate_anime_button.clicked.connect(self.rate_anime)
+
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(self.filter_combobox)
         filter_layout.addWidget(self.rating_min_spinbox)
@@ -145,6 +151,8 @@ class AnimeListApp(QMainWindow):
         layout.addWidget(QLabel('Search History:'))
         layout.addWidget(self.search_history)
         layout.addWidget(self.statistics_table)
+        layout.addWidget(self.view_details_button)
+        layout.addWidget(self.rate_anime_button)
 
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
@@ -218,7 +226,7 @@ class AnimeListApp(QMainWindow):
                 return
             self.update_data(title, new_title, new_genre, new_rating)
             self.refresh_list()
-            self.statusbar.showMessage(f'Updated: {title}', 5000)
+            self.statusbar.showMessage(f'Updated: {new_title}', 5000)
 
     def save_data(self, title, genre, rating):
         conn = sqlite3.connect('anime_list.db')
@@ -294,6 +302,7 @@ class AnimeListApp(QMainWindow):
                     break
             if not found:
                 self.statusbar.showMessage(f'No anime found with title: {text}', 5000)
+            self.add_to_search_history(text)
 
     def sort_by_title(self):
         self.anime_list.sortItems()
@@ -365,6 +374,30 @@ class AnimeListApp(QMainWindow):
                 conn.close()
             self.refresh_list()
             self.statusbar.showMessage(f'Imported from {file_path}', 5000)
+
+    def view_details(self):
+        selected_item = self.anime_list.currentItem()
+        if selected_item:
+            data = selected_item.text().split(', ')
+            title = data[0].replace('Title: ', '')
+            genre = data[1].replace('Genre: ', '')
+            rating = data[2].replace('Rating: ', '')
+            QMessageBox.information(self, 'Anime Details', f'Title: {title}\nGenre: {genre}\nRating: {rating}')
+
+    def rate_anime(self):
+        selected_item = self.anime_list.currentItem()
+        if selected_item:
+            data = selected_item.text().split(', ')
+            title = data[0].replace('Title: ', '')
+            rating, ok = QInputDialog.getDouble(self, 'Rate Anime', 'Enter new rating (0-10):', 0, 0, 10, 1)
+            if ok:
+                conn = sqlite3.connect('anime_list.db')
+                c = conn.cursor()
+                c.execute("UPDATE anime SET rating=? WHERE title=?", (rating, title))
+                conn.commit()
+                conn.close()
+                self.refresh_list()
+                self.statusbar.showMessage(f'Updated rating for {title}', 5000)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
