@@ -3,7 +3,8 @@ import sqlite3
 import csv
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QMenuBar, QMenu, QAction, QListWidget,
                              QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QMenu,
-                             QComboBox, QPushButton, QMessageBox, QFileDialog, QSpinBox, QHBoxLayout)
+                             QComboBox, QPushButton, QMessageBox, QFileDialog, QSpinBox, QHBoxLayout, QRadioButton,
+                             QButtonGroup, QGridLayout, QCheckBox, QTableWidget, QTableWidgetItem)
 
 class AnimeEntryDialog(QDialog):
     def __init__(self, parent=None, title='', genre='', rating=''):
@@ -50,7 +51,7 @@ class AnimeListApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Anime List Database')
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 900, 700)
         self.initUI()
         self.setup_database()
         self.load_data()
@@ -112,12 +113,33 @@ class AnimeListApp(QMainWindow):
         self.clear_filter_button = QPushButton('Clear Filters', self)
         self.clear_filter_button.clicked.connect(self.clear_filters)
 
+        self.sort_by_genre_button = QPushButton('Sort by Genre', self)
+        self.sort_by_genre_button.clicked.connect(self.sort_by_genre)
+
+        self.filter_label = QLabel('Filter by:', self)
+        self.sort_by_genre_checkbox = QCheckBox('Sort by Genre', self)
+        self.sort_by_rating_checkbox = QCheckBox('Sort by Rating', self)
+        self.sort_by_rating_checkbox.setChecked(False)
+
+        self.search_history = QListWidget(self)
+        self.search_history.setWindowTitle('Search History')
+        self.search_history.setFixedWidth(200)
+        self.search_history.setMaximumHeight(200)
+
+        self.statistics_table = QTableWidget(0, 3, self)
+        self.statistics_table.setHorizontalHeaderLabels(['Total Animes', 'Average Rating', 'Highest Rating'])
+        self.statistics_table.setHorizontalHeaderLabels(['Total Animes', 'Average Rating', 'Highest Rating'])
+
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(self.filter_combobox)
         filter_layout.addWidget(self.rating_min_spinbox)
         filter_layout.addWidget(self.rating_max_spinbox)
         filter_layout.addWidget(self.filter_button)
         filter_layout.addWidget(self.clear_filter_button)
+        filter_layout.addWidget(self.sort_by_genre_button)
+        filter_layout.addWidget(self.filter_label)
+        filter_layout.addWidget(self.sort_by_genre_checkbox)
+        filter_layout.addWidget(self.sort_by_rating_checkbox)
 
         central_widget = QWidget()
         layout = QVBoxLayout()
@@ -127,6 +149,9 @@ class AnimeListApp(QMainWindow):
         layout.addWidget(self.anime_list)
         layout.addWidget(self.sort_button)
         layout.addLayout(filter_layout)
+        layout.addWidget(QLabel('Search History:'))
+        layout.addWidget(self.search_history)
+        layout.addWidget(self.statistics_table)
 
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
@@ -147,6 +172,11 @@ class AnimeListApp(QMainWindow):
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
             self.save_data(title, genre, rating)
             self.statusbar.showMessage(f'Added: {title}', 5000)
+            self.add_to_search_history(title)
+
+    def add_to_search_history(self, title):
+        if title:
+            self.search_history.addItem(title)
 
     def show_context_menu(self, pos):
         menu = QMenu()
@@ -189,18 +219,20 @@ class AnimeListApp(QMainWindow):
         c.execute("INSERT INTO anime (title, genre, rating) VALUES (?, ?, ?)", (title, genre, rating))
         conn.commit()
         conn.close()
-
-    def update_data(self, old_title, new_title, genre, rating):
-        conn = sqlite3.connect('anime_list.db')
-        c = conn.cursor()
-        c.execute("UPDATE anime SET title=?, genre=?, rating=? WHERE title=?", (new_title, genre, rating, old_title))
-        conn.commit()
-        conn.close()
+        self.refresh_list()
 
     def delete_data(self, title):
         conn = sqlite3.connect('anime_list.db')
         c = conn.cursor()
         c.execute("DELETE FROM anime WHERE title=?", (title,))
+        conn.commit()
+        conn.close()
+        self.refresh_list()
+
+    def update_data(self, old_title, new_title, new_genre, new_rating):
+        conn = sqlite3.connect('anime_list.db')
+        c = conn.cursor()
+        c.execute("UPDATE anime SET title=?, genre=?, rating=? WHERE title=?", (new_title, new_genre, new_rating, old_title))
         conn.commit()
         conn.close()
 
@@ -214,20 +246,26 @@ class AnimeListApp(QMainWindow):
         for row in rows:
             title, genre, rating = row
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
-        self.statusbar.showMessage('Loaded anime list from database', 5000)
+        self.update_statistics()
 
     def refresh_list(self):
-        self.anime_list.clear()
         self.load_data()
+
+    def update_statistics(self):
+        conn = sqlite3.connect('anime_list.db')
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*), AVG(rating), MAX(rating) FROM anime")
+        result = c.fetchone()
+        conn.close()
+        total, avg_rating, highest_rating = result
+        self.statistics_table.setRowCount(1)
+        self.statistics_table.setItem(0, 0, QTableWidgetItem(str(total)))
+        self.statistics_table.setItem(0, 1, QTableWidgetItem(f'{avg_rating:.2f}' if avg_rating is not None else 'N/A'))
+        self.statistics_table.setItem(0, 2, QTableWidgetItem(f'{highest_rating:.1f}' if highest_rating is not None else 'N/A'))
 
     def clear_list(self):
         self.anime_list.clear()
-        conn = sqlite3.connect('anime_list.db')
-        c = conn.cursor()
-        c.execute("DELETE FROM anime")
-        conn.commit()
-        conn.close()
-        self.statusbar.showMessage('Cleared anime list', 5000)
+        self.statusbar.showMessage('List cleared', 5000)
 
     def clear_filters(self):
         self.filter_combobox.setCurrentIndex(0)
@@ -251,6 +289,13 @@ class AnimeListApp(QMainWindow):
 
     def sort_by_title(self):
         self.anime_list.sortItems()
+
+    def sort_by_genre(self):
+        items = [self.anime_list.item(i) for i in range(self.anime_list.count())]
+        sorted_items = sorted(items, key=lambda x: x.text().split(', ')[1].replace('Genre: ', ''))
+        self.anime_list.clear()
+        for item in sorted_items:
+            self.anime_list.addItem(item.text())
 
     def filter_by_genre(self, index):
         genre = self.filter_combobox.currentText()
