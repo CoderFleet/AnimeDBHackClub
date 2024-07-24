@@ -3,7 +3,7 @@ import sqlite3
 import csv
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QMenuBar, QMenu, QAction, QListWidget,
                              QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QMenu,
-                             QComboBox, QPushButton, QMessageBox, QFileDialog)
+                             QComboBox, QPushButton, QMessageBox, QFileDialog, QSpinBox, QHBoxLayout)
 
 class AnimeEntryDialog(QDialog):
     def __init__(self, parent=None, title='', genre='', rating=''):
@@ -96,6 +96,29 @@ class AnimeListApp(QMainWindow):
         self.filter_combobox.addItem('Horror')
         self.filter_combobox.currentIndexChanged.connect(self.filter_by_genre)
 
+        self.rating_min_spinbox = QSpinBox(self)
+        self.rating_min_spinbox.setRange(0, 10)
+        self.rating_min_spinbox.setPrefix('Min Rating: ')
+        self.rating_min_spinbox.setValue(0)
+
+        self.rating_max_spinbox = QSpinBox(self)
+        self.rating_max_spinbox.setRange(0, 10)
+        self.rating_max_spinbox.setPrefix('Max Rating: ')
+        self.rating_max_spinbox.setValue(10)
+
+        self.filter_button = QPushButton('Filter by Rating', self)
+        self.filter_button.clicked.connect(self.filter_by_rating)
+
+        self.clear_filter_button = QPushButton('Clear Filters', self)
+        self.clear_filter_button.clicked.connect(self.clear_filters)
+
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(self.filter_combobox)
+        filter_layout.addWidget(self.rating_min_spinbox)
+        filter_layout.addWidget(self.rating_max_spinbox)
+        filter_layout.addWidget(self.filter_button)
+        filter_layout.addWidget(self.clear_filter_button)
+
         central_widget = QWidget()
         layout = QVBoxLayout()
 
@@ -103,7 +126,7 @@ class AnimeListApp(QMainWindow):
         layout.addWidget(welcome_label)
         layout.addWidget(self.anime_list)
         layout.addWidget(self.sort_button)
-        layout.addWidget(self.filter_combobox)
+        layout.addLayout(filter_layout)
 
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
@@ -206,9 +229,15 @@ class AnimeListApp(QMainWindow):
         conn.close()
         self.statusbar.showMessage('Cleared anime list', 5000)
 
+    def clear_filters(self):
+        self.filter_combobox.setCurrentIndex(0)
+        self.rating_min_spinbox.setValue(0)
+        self.rating_max_spinbox.setValue(10)
+        self.refresh_list()
+
     def search_anime(self):
-        text, ok = QInputDialog.getText(self, 'Search Anime', 'Enter title to search:')
-        if ok and text:
+        text, ok = QInputDialog.getText(self, 'Search Anime', 'Enter anime title:')
+        if ok:
             found = False
             for i in range(self.anime_list.count()):
                 item = self.anime_list.item(i)
@@ -239,6 +268,20 @@ class AnimeListApp(QMainWindow):
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
         self.statusbar.showMessage(f'Filtered by genre: {genre}', 5000)
 
+    def filter_by_rating(self):
+        min_rating = self.rating_min_spinbox.value()
+        max_rating = self.rating_max_spinbox.value()
+        conn = sqlite3.connect('anime_list.db')
+        c = conn.cursor()
+        c.execute("SELECT title, genre, rating FROM anime WHERE rating BETWEEN ? AND ?", (min_rating, max_rating))
+        rows = c.fetchall()
+        conn.close()
+        self.anime_list.clear()
+        for row in rows:
+            title, genre, rating = row
+            self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
+        self.statusbar.showMessage(f'Filtered by rating: {min_rating} - {max_rating}', 5000)
+
     def export_to_csv(self):
         file_path, _ = QFileDialog.getSaveFileName(self, 'Export to CSV', '', 'CSV Files (*.csv)')
         if file_path:
@@ -258,7 +301,7 @@ class AnimeListApp(QMainWindow):
         if file_path:
             with open(file_path, 'r', encoding='utf-8') as file:
                 reader = csv.reader(file)
-                next(reader)  # Skip header
+                next(reader)
                 conn = sqlite3.connect('anime_list.db')
                 c = conn.cursor()
                 c.execute("DELETE FROM anime")
