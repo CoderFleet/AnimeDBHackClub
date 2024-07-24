@@ -1,8 +1,9 @@
 import sys
 import sqlite3
+import csv
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QMenuBar, QMenu, QAction, QListWidget,
                              QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QMenu,
-                             QComboBox, QPushButton, QMessageBox)
+                             QComboBox, QPushButton, QMessageBox, QFileDialog)
 
 class AnimeEntryDialog(QDialog):
     def __init__(self, parent=None, title='', genre='', rating=''):
@@ -24,7 +25,7 @@ class AnimeEntryDialog(QDialog):
 
         layout.addRow('Title:', self.title_input)
         layout.addRow('Genre:', self.genre_input)
-        layout.addRow('Rating:', self.rating_input)
+        layout.addRow('Rating (0-10):', self.rating_input)
         
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         button_box.accepted.connect(self.accept)
@@ -35,6 +36,15 @@ class AnimeEntryDialog(QDialog):
 
     def get_data(self):
         return self.title_input.text(), self.genre_input.text(), self.rating_input.text()
+
+    def validate_rating(self, rating):
+        try:
+            value = float(rating)
+            if 0 <= value <= 10:
+                return True
+            return False
+        except ValueError:
+            return False
 
 class AnimeListApp(QMainWindow):
     def __init__(self):
@@ -52,16 +62,22 @@ class AnimeListApp(QMainWindow):
         add_action = QAction('Add Anime', self)
         clear_action = QAction('Clear List', self)
         search_action = QAction('Search Anime', self)
+        export_action = QAction('Export to CSV', self)
+        import_action = QAction('Import from CSV', self)
         exit_action = QAction('Exit', self)
 
         file_menu.addAction(add_action)
         file_menu.addAction(clear_action)
         file_menu.addAction(search_action)
+        file_menu.addAction(export_action)
+        file_menu.addAction(import_action)
         file_menu.addAction(exit_action)
 
         add_action.triggered.connect(self.show_add_anime_dialog)
         clear_action.triggered.connect(self.clear_list)
         search_action.triggered.connect(self.search_anime)
+        export_action.triggered.connect(self.export_to_csv)
+        import_action.triggered.connect(self.import_from_csv)
         exit_action.triggered.connect(self.close)
 
         self.anime_list = QListWidget()
@@ -102,6 +118,9 @@ class AnimeListApp(QMainWindow):
             if not title.strip():
                 QMessageBox.warning(self, 'Warning', 'Title cannot be empty.')
                 return
+            if not dialog.validate_rating(rating):
+                QMessageBox.warning(self, 'Warning', 'Rating must be a number between 0 and 10.')
+                return
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
             self.save_data(title, genre, rating)
             self.statusbar.showMessage(f'Added: {title}', 5000)
@@ -133,6 +152,9 @@ class AnimeListApp(QMainWindow):
             new_title, new_genre, new_rating = dialog.get_data()
             if not new_title.strip():
                 QMessageBox.warning(self, 'Warning', 'Title cannot be empty.')
+                return
+            if not dialog.validate_rating(new_rating):
+                QMessageBox.warning(self, 'Warning', 'Rating must be a number between 0 and 10.')
                 return
             self.update_data(title, new_title, new_genre, new_rating)
             self.refresh_list()
@@ -216,6 +238,37 @@ class AnimeListApp(QMainWindow):
             title, genre, rating = row
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
         self.statusbar.showMessage(f'Filtered by genre: {genre}', 5000)
+
+    def export_to_csv(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, 'Export to CSV', '', 'CSV Files (*.csv)')
+        if file_path:
+            conn = sqlite3.connect('anime_list.db')
+            c = conn.cursor()
+            c.execute("SELECT title, genre, rating FROM anime")
+            rows = c.fetchall()
+            conn.close()
+            with open(file_path, 'w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Title', 'Genre', 'Rating'])
+                writer.writerows(rows)
+            self.statusbar.showMessage(f'Exported to {file_path}', 5000)
+
+    def import_from_csv(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, 'Import from CSV', '', 'CSV Files (*.csv)')
+        if file_path:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                reader = csv.reader(file)
+                next(reader)  # Skip header
+                conn = sqlite3.connect('anime_list.db')
+                c = conn.cursor()
+                c.execute("DELETE FROM anime")
+                for row in reader:
+                    if len(row) == 3:
+                        c.execute("INSERT INTO anime (title, genre, rating) VALUES (?, ?, ?)", row)
+                conn.commit()
+                conn.close()
+            self.refresh_list()
+            self.statusbar.showMessage(f'Imported from {file_path}', 5000)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
