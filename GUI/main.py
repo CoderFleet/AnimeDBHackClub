@@ -2,9 +2,8 @@ import sys
 import sqlite3
 import csv
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QMenuBar, QMenu, QAction, QListWidget,
-                             QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QMenu,
-                             QComboBox, QPushButton, QMessageBox, QFileDialog, QSpinBox, QHBoxLayout, QRadioButton,
-                             QButtonGroup, QGridLayout, QCheckBox, QTableWidget, QTableWidgetItem)
+                             QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QComboBox,
+                             QPushButton, QMessageBox, QFileDialog, QSpinBox, QHBoxLayout, QTableWidget, QTableWidgetItem)
 
 class AnimeEntryDialog(QDialog):
     def __init__(self, parent=None, title='', genre='', rating=''):
@@ -117,9 +116,6 @@ class AnimeListApp(QMainWindow):
         self.sort_by_genre_button.clicked.connect(self.sort_by_genre)
 
         self.filter_label = QLabel('Filter by:', self)
-        self.sort_by_genre_checkbox = QCheckBox('Sort by Genre', self)
-        self.sort_by_rating_checkbox = QCheckBox('Sort by Rating', self)
-        self.sort_by_rating_checkbox.setChecked(False)
 
         self.search_history = QListWidget(self)
         self.search_history.setWindowTitle('Search History')
@@ -127,7 +123,6 @@ class AnimeListApp(QMainWindow):
         self.search_history.setMaximumHeight(200)
 
         self.statistics_table = QTableWidget(0, 3, self)
-        self.statistics_table.setHorizontalHeaderLabels(['Total Animes', 'Average Rating', 'Highest Rating'])
         self.statistics_table.setHorizontalHeaderLabels(['Total Animes', 'Average Rating', 'Highest Rating'])
 
         filter_layout = QHBoxLayout()
@@ -138,8 +133,6 @@ class AnimeListApp(QMainWindow):
         filter_layout.addWidget(self.clear_filter_button)
         filter_layout.addWidget(self.sort_by_genre_button)
         filter_layout.addWidget(self.filter_label)
-        filter_layout.addWidget(self.sort_by_genre_checkbox)
-        filter_layout.addWidget(self.sort_by_rating_checkbox)
 
         central_widget = QWidget()
         layout = QVBoxLayout()
@@ -158,6 +151,20 @@ class AnimeListApp(QMainWindow):
 
         self.statusbar = QStatusBar()
         self.setStatusBar(self.statusbar)
+
+    def setup_database(self):
+        conn = sqlite3.connect('anime_list.db')
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS anime (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                genre TEXT NOT NULL,
+                rating REAL NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
 
     def show_add_anime_dialog(self):
         dialog = AnimeEntryDialog(self)
@@ -258,6 +265,7 @@ class AnimeListApp(QMainWindow):
         result = c.fetchone()
         conn.close()
         total, avg_rating, highest_rating = result
+        highest_rating = float(highest_rating) if highest_rating is not None else 0
         self.statistics_table.setRowCount(1)
         self.statistics_table.setItem(0, 0, QTableWidgetItem(str(total)))
         self.statistics_table.setItem(0, 1, QTableWidgetItem(f'{avg_rating:.2f}' if avg_rating is not None else 'N/A'))
