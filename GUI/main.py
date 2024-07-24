@@ -1,6 +1,8 @@
 import sys
 import sqlite3
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QMenuBar, QMenu, QAction, QListWidget, QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QMenu
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QMenuBar, QMenu, QAction, QListWidget,
+                             QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QInputDialog, QMenu,
+                             QComboBox, QPushButton, QMessageBox)
 
 class AnimeEntryDialog(QDialog):
     def __init__(self, parent=None, title='', genre='', rating=''):
@@ -51,7 +53,7 @@ class AnimeListApp(QMainWindow):
         clear_action = QAction('Clear List', self)
         search_action = QAction('Search Anime', self)
         exit_action = QAction('Exit', self)
-        
+
         file_menu.addAction(add_action)
         file_menu.addAction(clear_action)
         file_menu.addAction(search_action)
@@ -63,8 +65,20 @@ class AnimeListApp(QMainWindow):
         exit_action.triggered.connect(self.close)
 
         self.anime_list = QListWidget()
-        self.anime_list.setContextMenuPolicy(3)  # Custom context menu policy
+        self.anime_list.setContextMenuPolicy(3)
         self.anime_list.customContextMenuRequested.connect(self.show_context_menu)
+
+        self.sort_button = QPushButton('Sort by Title', self)
+        self.sort_button.clicked.connect(self.sort_by_title)
+
+        self.filter_combobox = QComboBox(self)
+        self.filter_combobox.addItem('All Genres')
+        self.filter_combobox.addItem('Action')
+        self.filter_combobox.addItem('Comedy')
+        self.filter_combobox.addItem('Drama')
+        self.filter_combobox.addItem('Fantasy')
+        self.filter_combobox.addItem('Horror')
+        self.filter_combobox.currentIndexChanged.connect(self.filter_by_genre)
 
         central_widget = QWidget()
         layout = QVBoxLayout()
@@ -72,6 +86,8 @@ class AnimeListApp(QMainWindow):
         welcome_label = QLabel('Welcome to the Anime List Database!', self)
         layout.addWidget(welcome_label)
         layout.addWidget(self.anime_list)
+        layout.addWidget(self.sort_button)
+        layout.addWidget(self.filter_combobox)
 
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
@@ -83,6 +99,9 @@ class AnimeListApp(QMainWindow):
         dialog = AnimeEntryDialog(self)
         if dialog.exec_() == QDialog.Accepted:
             title, genre, rating = dialog.get_data()
+            if not title.strip():
+                QMessageBox.warning(self, 'Warning', 'Title cannot be empty.')
+                return
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
             self.save_data(title, genre, rating)
             self.statusbar.showMessage(f'Added: {title}', 5000)
@@ -112,6 +131,9 @@ class AnimeListApp(QMainWindow):
         dialog = AnimeEntryDialog(self, title, genre, rating)
         if dialog.exec_() == QDialog.Accepted:
             new_title, new_genre, new_rating = dialog.get_data()
+            if not new_title.strip():
+                QMessageBox.warning(self, 'Warning', 'Title cannot be empty.')
+                return
             self.update_data(title, new_title, new_genre, new_rating)
             self.refresh_list()
             self.statusbar.showMessage(f'Updated: {title}', 5000)
@@ -143,6 +165,7 @@ class AnimeListApp(QMainWindow):
         c.execute("SELECT title, genre, rating FROM anime")
         rows = c.fetchall()
         conn.close()
+        self.anime_list.clear()
         for row in rows:
             title, genre, rating = row
             self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
@@ -174,6 +197,25 @@ class AnimeListApp(QMainWindow):
                     break
             if not found:
                 self.statusbar.showMessage(f'No anime found with title: {text}', 5000)
+
+    def sort_by_title(self):
+        self.anime_list.sortItems()
+
+    def filter_by_genre(self, index):
+        genre = self.filter_combobox.currentText()
+        conn = sqlite3.connect('anime_list.db')
+        c = conn.cursor()
+        if genre == 'All Genres':
+            c.execute("SELECT title, genre, rating FROM anime")
+        else:
+            c.execute("SELECT title, genre, rating FROM anime WHERE genre=?", (genre,))
+        rows = c.fetchall()
+        conn.close()
+        self.anime_list.clear()
+        for row in rows:
+            title, genre, rating = row
+            self.anime_list.addItem(f'Title: {title}, Genre: {genre}, Rating: {rating}')
+        self.statusbar.showMessage(f'Filtered by genre: {genre}', 5000)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
